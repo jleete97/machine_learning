@@ -69,14 +69,14 @@ img {
 <div id="executive-summary" class="section level2">
 <h2>Executive Summary</h2>
 <p>This report describes building a model, selected from among competing options, to determine whether a person is performing a particular exercise correctly, based on physical measurements taken during the exercise. The model compares the measurement to data samples taken while test subjects did the exercise correctly, or committed one of four common mistakes, and determines which category the new input data best matches.</p>
-<p>As a final step, we perform the “Programming Assignment” phase of the project, which predicts outcomes on a new set of test data and exports the results for upload.</p>
+<p>As a final step, we perform the “Programming Assignment” phase of the project, which predicts outcomes on a new set of test data, and exports the results for upload.</p>
 </div>
 <div id="model-building" class="section level2">
 <h2>Model Building</h2>
-<p>In this section, we will consider load the provided training data set, model alternatives, build a model, perform cross-validation, and estimate out-of-sample error.</p>
+<p>In this section, we load the provided training data set, develop alternative models with cross-validation, and estimate and compare out-of-sample error.</p>
 <div id="data-load-and-selection" class="section level3">
 <h3>Data Load and Selection</h3>
-<p>Note: The code presented herein assumes that the two data files, “pml-training.csv” and “pml-testing.csv,” are present in a subdirectory “<code>data</code>” of the working directory.</p>
+<p><strong>Note</strong>: The code presented herein assumes that the two data files, “pml-training.csv” and “pml-testing.csv,” are present in a subdirectory “<code>data</code>” of the working directory. The repository containing this file has been so configured.</p>
 <p>First, we load the data and extract fields of interest:</p>
 <pre class="r"><code># Read data, subset to meaningful columns
 data &lt;- read.csv(paste(path.to.input.data, &quot;pml-training.csv&quot;, sep = &quot;/&quot;))
@@ -112,7 +112,7 @@ data &lt;- subset(data, select = fields)</code></pre>
 <div id="data-considerations" class="section level4">
 <h4>Data Considerations</h4>
 <p>The predictor data are almost all numeric, and we have <code>53</code> variables in the data set. Without a detailed study of the particular exercise technique and errors, it would be hard to make an informed guess about which predictors would perform best. We will therefore use principal components analysis on the training data to help us find the best predictors, which we will apply to our test data sets.</p>
-<p>Conversely, the outcomes are categorical (“A” through “E”), so numeric error estimates are not useful in measuring performance. We will use Accuracy and Kappa.</p>
+<p>Conversely, the outcomes are categorical (“A” through “E”), so numeric error estimates are not useful in measuring performance. We will evaluate Accuracy and Kappa on the confusion matrix for our out-of-sample data, comparing Accuracies to select a final model.</p>
 <p>The data set has previously been split into training and test data sets. To build our model, we load the training data and take a subset for which meaningful data are present. (Most of the records are instantaneous; a small fraction of the records flag specific events, and include summary data for the measurements over the event. Even more compellingly, the event-summary data do not appear in the test data set used to evaluate our final model. Given all these factors, we disregard these event-summary data.)</p>
 <p>The total number of missing data elements in our data set is 0. Missing data is not a problem, and we need not worry about imputing it. (If we had needed to, the “k-nearest neighbors” algorithm would seem logical, as the data are based in repeated movements that are likely to have similar characteristics under similar circumstances.)</p>
 </div>
@@ -123,7 +123,7 @@ data &lt;- subset(data, select = fields)</code></pre>
 <p>Our plan:</p>
 <ul>
 <li>split the original training data into training and test subsets;</li>
-<li>pre-process all the numeric input data, centering and scaling;</li>
+<li>pre-process the numeric training data, centering and scaling;</li>
 <li>perform principal component analysis on the training subset;</li>
 <li>build models based on the training data; and,</li>
 <li>compare the results of the models on the test data subset.</li>
@@ -200,14 +200,14 @@ rf.cv.accuracy &lt;- rf.cv.confusion.matrix$overall[&quot;Accuracy&quot;]
 rf.confusion.matrix &lt;- confusionMatrix(testing$classe, predict(rf.fit, test.pc))
 rf.accuracy &lt;- rf.confusion.matrix$overall[&quot;Accuracy&quot;]</code></pre>
 <p>Our Random Forest model’s cross-validated accuracy is <code>1</code>, which we consider “<code>superlative</code>.”</p>
-<p>When compared with our held-out test data set, our Random Forest confusion matrix’s accuracy is <code>fair</code>, at <code>0.7893664</code>, with Kappa of <code>0.7326695</code>:</p>
+<p>When compared with our held-out test data set, our Random Forest confusion matrix’s out-of-sample accuracy is “<code>fair</code>” at <code>0.7870057</code>, with Kappa of <code>0.730225</code>:</p>
 <pre><code>##           Reference
 ## Prediction    A    B    C    D    E
-##          A 4849  141   99  164   48
-##          B  407 2523  345   35  297
-##          C  314  232 2382  167  155
-##          D  130  140  413 2185  187
-##          E   75  251  196  130 2774</code></pre>
+##          A 4616  178  299  147   61
+##          B  347 2563  373  104  220
+##          C  208  213 2672  129   28
+##          D  222   93  358 2094  288
+##          E  122  205  223  152 2724</code></pre>
 </div>
 <div id="boosting" class="section level4">
 <h4>Boosting</h4>
@@ -229,15 +229,15 @@ boost.cv.accuracy &lt;- boost.cv.confusion.matrix$overall[&quot;Accuracy&quot;]
 # Evaluate model against internal test data
 boost.confusion.matrix &lt;- confusionMatrix(testing$classe, predict(boost.fit, test.pc))
 boost.accuracy &lt;- boost.confusion.matrix$overall[&quot;Accuracy&quot;]</code></pre>
-<p>Our Boosting model’s cross-validated accuracy is <code>0.9928789</code>, or “<code>superlative</code>.”</p>
-<p>The Boosting confusion matrix, derived from our set-aside testing data (as with the Random Forest model), follows. With an accuracy of <code>0.7029884</code> and a Kappa of <code>0.6238158</code>, we evaluate it as <code>fair</code>; it is <code>significantly</code> <code>worse</code> than the Random Forest confusion matrix.</p>
+<p>Our Boosting model’s cross-validated accuracy is <code>0.9918616</code>, or “<code>superlative</code>.”</p>
+<p>The Boosting confusion matrix, derived from our set-aside testing data (as with the Random Forest model), follows. With an out-of-sample accuracy of <code>0.7028811</code> and a Kappa of <code>0.6230586</code>, we evaluate it as <code>fair</code>; it is <code>significantly</code> <code>worse</code> than the Random Forest confusion matrix.</p>
 <pre><code>##           Reference
 ## Prediction    A    B    C    D    E
-##          A 4322  276  355  254   94
-##          B  494 2209  456  104  344
-##          C  369  251 2231  223  176
-##          D  215  198  452 1933  257
-##          E  106  431  273  208 2408</code></pre>
+##          A 4332  308  315  268   78
+##          B  470 2289  331  186  331
+##          C  355  354 2186  219  136
+##          D  358  157  310 1960  270
+##          E  215  394  223  260 2334</code></pre>
 </div>
 <div id="model-selection" class="section level4">
 <h4>Model Selection</h4>
@@ -259,12 +259,12 @@ homework.pc &lt;- predict(pre.proc, homework.cov, threshold = variance.fraction.
 
 homework.predictions &lt;- predict(final.model.fit, homework.pc)</code></pre>
 <p>Our final result is:</p>
-<p><code>C, A, C, A, A, B, D, B, A, A, A, A, B, A, E, E, A, B, B, B</code></p>
-<p>which we export to the prediction assignment files:</p>
+<p><code>C, A, A</code>, etc.</p>
+<p>(<code>20</code> values total), which we export to the prediction assignment files:</p>
 <pre class="r"><code>export.path &lt;- &quot;results&quot;
 
-# From Prediction Assignment instructions: export prediction
-# results on separate test data to individual text files for upload. 
+# From Prediction Assignment instructions: export prediction results
+# on separate test data to individual text files for upload. 
 pml_write_files = function(x){
   n = length(x)
   for(i in 1:n) {
