@@ -1,4 +1,4 @@
-## Programming assignment for Machine Learing class
+## Programming assignment for Machine Learning class
 
 This repo has two branches: the main branch, and a "gh-pages"
 branch with the compiled HTML output. Switch to that branch
