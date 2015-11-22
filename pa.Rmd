@@ -21,9 +21,9 @@ data, and exports the results for upload.
 
 ## Model Building
 
-In this section, we will consider load the provided training data
-set, model alternatives, build a model, perform cross-validation,
-and estimate out-of-sample error.
+In this section, we load the provided training data
+set, develop alternative models with cross-validation,
+and estimate and compare out-of-sample error.
 
 ### Data Load and Selection
 
@@ -38,9 +38,10 @@ opts_chunk$set(message = FALSE, error = FALSE, warning = FALSE,
 path.to.input.data <- "data"
 ```
 
-Note: The code presented herein assumes that the two data files,
+**Note**: The code presented herein assumes that the two data files,
 "pml-training.csv" and "pml-testing.csv," are present in a
 subdirectory "```r path.to.input.data```" of the working directory.
+The repository containing this file has been so configured.
 
 First, we load the data and extract fields of interest:
 
@@ -90,7 +91,8 @@ find the best predictors, which we will apply to our test data sets.
 
 Conversely, the outcomes are categorical ("A" through "E"), so
 numeric error estimates are not useful in measuring performance.
-We will use Accuracy and Kappa.
+We will evaluate Accuracy and Kappa on the confusion matrix for
+our out-of-sample data, comparing Accuracies to select a final model.
 
 The data set has previously been split into training and test
 data sets. To build our model, we load the training data and
@@ -118,7 +120,7 @@ Forest and Boosting.
 Our plan:
 
  * split the original training data into training and test subsets;
- * pre-process all the numeric input data, centering and scaling;
+ * pre-process the numeric training data, centering and scaling;
  * perform principal component analysis on the training subset;
  * build models based on the training data; and,
  * compare the results of the models on the test data subset.
@@ -215,8 +217,8 @@ Our Random Forest model's cross-validated accuracy is
 "```r evaluateConfusionMatrix(rf.cv.confusion.matrix)```."
 
 When compared with our held-out test data set,
-our Random Forest confusion matrix's accuracy is
-```r evaluateConfusionMatrix(rf.confusion.matrix)```,
+our Random Forest confusion matrix's out-of-sample accuracy is
+"```r evaluateConfusionMatrix(rf.confusion.matrix)```"
 at
 ```r rf.accuracy```,
 with Kappa of
@@ -256,7 +258,7 @@ Our Boosting model's cross-validated accuracy is
 
 The Boosting confusion matrix, derived from our set-aside
 testing data (as with the Random Forest model), follows.
-With an accuracy of
+With an out-of-sample accuracy of
 ```r boost.accuracy```
 and a Kappa of
 ```r boost.confusion.matrix$overall["Kappa"]```,
@@ -307,8 +309,9 @@ homework.predictions <- predict(final.model.fit, homework.pc)
 
 Our final result is:
 
-```r homework.predictions```
+```r homework.predictions[1:3]```, etc.
 
+(```r length(homework.predictions)``` values total),
 which we export to the prediction assignment files:
 
 ```{r exportPredictionAssignmentResults, message = FALSE, warning = FALSE, results = "hide"}
