@@ -163,7 +163,7 @@ evaluateConfusionMatrix <- function(cm) {
 }
 
 # Use common training and test subsets
-fraction.for.training = 0.05
+fraction.for.training = 0.75
 inTrain <- createDataPartition(y = data$classe, p = fraction.for.training, list = FALSE)
 training <- data[inTrain, ]
 testing <- data[-inTrain, ]
