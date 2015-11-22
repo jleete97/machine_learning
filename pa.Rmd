@@ -1,0 +1,329 @@
+---
+title: "Model to Verify Correct Exercise Technique"
+date: "November 22, 2015"
+output: html_document
+---
+
+## Executive Summary
+
+This report describes building a model, selected from among
+competing options, to determine whether a
+person is performing a particular exercise correctly, based on
+physical measurements taken during the exercise. The model
+compares the measurement to data samples taken while test
+subjects did the exercise correctly, or committed one of four
+common mistakes, and determines which category the new input
+data best matches.
+
+As a final step, we perform the "Programming Assignment" phase
+of the project, which predicts outcomes on a new set of test
+data, and exports the results for upload.
+
+## Model Building
+
+In this section, we will consider load the provided training data
+set, model alternatives, build a model, perform cross-validation,
+and estimate out-of-sample error.
+
+### Data Load and Selection
+
+```{r setup, cache = T, echo = F, message = F, warning = F, tidy = F, results='hide'}
+library(knitr)
+options(width = 100)
+opts_chunk$set(message = FALSE, error = FALSE, warning = FALSE,
+               message = FALSE, comment = NA, fig.align = 'center',
+               dpi = 100, tidy = FALSE,
+               cache.path = '.cache/', fig.path = 'fig/')
+
+path.to.input.data <- "data"
+```
+
+Note: The code presented herein assumes that the two data files,
+"pml-training.csv" and "pml-testing.csv," are present in a
+subdirectory "```r path.to.input.data```" of the working directory.
+
+First, we load the data and extract fields of interest:
+
+```{r loadAndSubset}
+# Read data, subset to meaningful columns
+data <- read.csv(paste(path.to.input.data, "pml-training.csv", sep = "/"))
+fields <- c("user_name",
+            
+            # Belt measurements            
+            "roll_belt", "pitch_belt", "yaw_belt", "total_accel_belt",
+            "gyros_belt_x", "gyros_belt_y", "gyros_belt_z",
+            "accel_belt_x", "accel_belt_y", "accel_belt_z",
+            "magnet_belt_x", "magnet_belt_y", "magnet_belt_z",
+            
+            # Dumbbell measurements
+            "roll_dumbbell", "pitch_dumbbell", "yaw_dumbbell", "total_accel_dumbbell",
+            "gyros_dumbbell_x", "gyros_dumbbell_y", "gyros_dumbbell_z",
+            "accel_dumbbell_x", "accel_dumbbell_y", "accel_dumbbell_z",
+            "magnet_dumbbell_x", "magnet_dumbbell_y", "magnet_dumbbell_z",
+            
+            # Forearm measurements
+            "roll_forearm", "pitch_forearm", "yaw_forearm", "total_accel_forearm",
+            "gyros_forearm_x", "gyros_forearm_y", "gyros_forearm_z",
+            "accel_forearm_x", "accel_forearm_y", "accel_forearm_z",
+            "magnet_forearm_x", "magnet_forearm_y", "magnet_forearm_z",
+
+            # (Upper) arm measurements
+            "roll_arm", "pitch_arm", "yaw_arm", "total_accel_arm",
+            "gyros_arm_x", "gyros_arm_y", "gyros_arm_z",
+            "accel_arm_x", "accel_arm_y", "accel_arm_z",
+            "magnet_arm_x", "magnet_arm_y", "magnet_arm_z",
+            
+            # And, of course, our outcome!
+            "classe")
+data <- subset(data, select = fields)
+```
+
+#### Data Considerations
+
+The predictor data are almost all numeric, and we have
+```r (length(names(data)) - 1)```
+variables in the data set. Without a detailed study of the particular
+exercise technique and errors, it would be hard to make an informed
+guess about which predictors would perform best. We will therefore
+use principal components analysis on the training data to help us
+find the best predictors, which we will apply to our test data sets.
+
+Conversely, the outcomes are categorical ("A" through "E"), so
+numeric error estimates are not useful in measuring performance.
+We will use Accuracy and Kappa.
+
+The data set has previously been split into training and test
+data sets. To build our model, we load the training data and
+take a subset for which meaningful data are present. (Most of
+the records are instantaneous; a small fraction of the records
+flag specific events, and include summary data for the measurements
+over the event. Even more compellingly, the event-summary data
+do not appear in the test data set used to evaluate our final
+model. Given all these factors, we disregard these event-summary
+data.)
+
+The total number of missing data elements in our data set is
+`r sum(is.na(data))`. Missing data is not a problem, and we need
+not worry about imputing it. (If we had needed to, the
+"k-nearest neighbors" algorithm would seem logical, as the data
+are based in repeated movements that are likely to have similar
+characteristics under similar circumstances.)
+
+### Model Design, Testing and Selection
+
+Generalized linear models are not appropriate for a categorical
+outcome with more than two values. Instead, we will try Random
+Forest and Boosting.
+
+Our plan:
+
+ * split the original training data into training and test subsets;
+ * pre-process all the numeric input data, centering and scaling;
+ * perform principal component analysis on the training subset;
+ * build models based on the training data; and,
+ * compare the results of the models on the test data subset.
+
+We will then apply the better model to the test data for the second
+half of the homework assignment.
+
+#### Cross-Validation and Out-of-Sample Error
+
+We address cross-validation and out-of-sample error estimation
+in two ways: first, with our held-out testing data set; second,
+by specifying k-fold cross-validation in the "trControl" model
+training parameter. Each should give us an estimate of the model
+accuracy. We have enough data that leaving a significant fraction
+in a test set shouldn't seriously impair the model.
+
+#### Data Partition and Pre-Processing
+
+```{r modelSetup, message = FALSE, warning = FALSE, results = "hide"}
+library(ggplot2)
+library(lattice)
+library(caret)
+# Set up for multiple processor core operation
+library(doMC)
+registerDoMC(cores = 4)
+
+# Define a function to evaluate confusion matrix accuracy
+evaluateConfusionMatrix <- function(cm) {
+    acc <- cm$overall["Accuracy"]
+
+    if (acc >= 0.95) { desc <- "superlative" }
+    else if (acc >= 0.9) { desc <- "excellent" }
+    else if (acc >= 0.8) { desc <- "good" }
+    else if (acc >= 0.7) { desc <- "fair" }
+    else if (acc >= 0.6) { desc <- "minimal" }
+    else if (acc >= 0.5) { desc <- "barely acceptable" }
+    else { desc <- "poor" }
+
+    desc
+}
+
+# Use common training and test subsets
+fraction.for.training = 0.05
+inTrain <- createDataPartition(y = data$classe, p = fraction.for.training, list = FALSE)
+training <- data[inTrain, ]
+testing <- data[-inTrain, ]
+
+# Build trainControl parameter for cross-validation.
+train.control <- trainControl(method = "cv", number = 3)
+
+# Transform and build common principal component set.
+variance.fraction.to.explain <- 0.95 # how much of variance to explain in predict()
+train.cov <- training[2:53] # numeric covariates only; omit test subject, outcome
+test.cov <- testing[2:53]
+
+# Common pre-processing method, based on training data
+# but also for use on test data when applying model.
+pre.proc <- preProcess(train.cov, method = c("BoxCox", "center", "scale", "pca"))
+train.pc <- predict(pre.proc, train.cov, threshold = variance.fraction.to.explain)
+test.pc <- predict(pre.proc, test.cov, threshold = variance.fraction.to.explain)
+```
+
+R determined that we needed only ```r dim(train.pc)[2]``` principal components
+to achieve ```r variance.fraction.to.explain``` of the variance.
+
+We now build and evaluate our models.
+
+#### Random Forest
+
+First, we build our Random Forest model:
+
+```{r buildRandomForestModel, message = FALSE, warning = FALSE, results = "hide"}
+set.seed(13579)
+library(randomForest)
+
+# Train model on the training outcomes and calculated principal components:
+rf.fit <- train(training$classe ~ .,
+                data = train.pc,
+                method = "rf",
+                prox = TRUE,
+                trControl = train.control)
+
+# Evaluate model against internal training data subset (cross-validate)
+rf.cv.confusion.matrix <- confusionMatrix(training$classe, predict(rf.fit, train.pc))
+rf.cv.accuracy <- rf.cv.confusion.matrix$overall["Accuracy"]
+
+# Evaluate model against internal test data
+rf.confusion.matrix <- confusionMatrix(testing$classe, predict(rf.fit, test.pc))
+rf.accuracy <- rf.confusion.matrix$overall["Accuracy"]
+```
+
+Our Random Forest model's cross-validated accuracy is
+```r rf.cv.accuracy```, which we consider
+"```r evaluateConfusionMatrix(rf.cv.confusion.matrix)```."
+
+When compared with our held-out test data set,
+our Random Forest confusion matrix's accuracy is
+```r evaluateConfusionMatrix(rf.confusion.matrix)```,
+at
+```r rf.accuracy```,
+with Kappa of
+```r rf.confusion.matrix$overall["Kappa"]```:
+
+```{r showRandomForestConfusionMatrix, echo = FALSE}
+rf.confusion.matrix$table
+```
+
+#### Boosting
+
+And now, our Boosting model:
+
+```{r buildBoostingModel, message = FALSE, warning = FALSE, results = "hide"}
+set.seed(13579)
+library(gbm)
+library(survival)
+
+# Train model on the training outcomes and calculated principal components:
+boost.fit <- train(training$classe ~ .,
+                   data = train.pc,
+                   method = "gbm",
+                   trControl = train.control)
+
+# Evaluate model against internal training data subset (cross-validate)
+boost.cv.confusion.matrix <- confusionMatrix(training$classe, predict(boost.fit, train.pc))
+boost.cv.accuracy <- boost.cv.confusion.matrix$overall["Accuracy"]
+
+# Evaluate model against internal test data
+boost.confusion.matrix <- confusionMatrix(testing$classe, predict(boost.fit, test.pc))
+boost.accuracy <- boost.confusion.matrix$overall["Accuracy"]
+```
+
+Our Boosting model's cross-validated accuracy is
+```r boost.cv.accuracy```, or
+"```r evaluateConfusionMatrix(boost.cv.confusion.matrix)```."
+
+The Boosting confusion matrix, derived from our set-aside
+testing data (as with the Random Forest model), follows.
+With an accuracy of
+```r boost.accuracy```
+and a Kappa of
+```r boost.confusion.matrix$overall["Kappa"]```,
+we evaluate it as
+```r evaluateConfusionMatrix(boost.confusion.matrix)```; it is
+```r ifelse(abs(rf.accuracy - boost.accuracy) < 0.05, "slightly", "significantly")```
+```r ifelse(rf.accuracy > boost.accuracy, "worse", "better")```
+than the Random Forest confusion matrix.
+
+```{r showBoostingConfusionMatrix, echo = FALSE}
+boost.confusion.matrix$table
+```
+
+#### Model Selection
+
+```{r chooseModel, echo = FALSE, message = FALSE, warning = FALSE, results = "hide"}
+if (rf.accuracy > boost.accuracy) {
+    final.model.fit <- rf.fit
+    final.model.name <- "Random Forest"
+} else {
+    final.model.fit <- boost.fit
+    final.model.name <- "Boosting"
+}
+```
+
+As it has the better accuracy, we will use the ```r final.model.name``` model.
+
+(Each model has an expected value and confidence interval for
+its accuracy; we could compare these and determine how sure
+we are that one is really better than the other, but as we
+have to pick one here, that test is irrelevant.)
+
+## Application to Prediction Assignment
+
+Now we load the prediction assignment test data set, and apply our selected model:
+
+```{r loadPredictionAssignmentData, message = FALSE, warning = FALSE, results = "hide"}
+homework.data <- read.csv(paste(path.to.input.data, "pml-testing.csv", sep = "/"))
+
+homework.fields <- fields
+homework.fields[54] <- "problem_id"
+homework.data <- subset(homework.data, select = homework.fields)
+homework.cov <- homework.data[2:53]
+homework.pc <- predict(pre.proc, homework.cov, threshold = variance.fraction.to.explain)
+
+homework.predictions <- predict(final.model.fit, homework.pc)
+```
+
+Our final result is:
+
+```r homework.predictions```
+
+which we export to the prediction assignment files:
+
+```{r exportPredictionAssignmentResults, message = FALSE, warning = FALSE, results = "hide"}
+export.path <- "results"
+
+# From Prediction Assignment instructions: export prediction results
+# on separate test data to individual text files for upload. 
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n) {
+    filename = paste0(export.path, "/", "problem_id_", i, ".txt")
+    write.table(x[i], file=filename, quote=FALSE, row.names=FALSE, col.names=FALSE)
+  }
+}
+
+# Call export function on prediction result data.
+pml_write_files(homework.predictions)
+```
