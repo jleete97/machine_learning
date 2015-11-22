@@ -158,7 +158,7 @@ evaluateConfusionMatrix &lt;- function(cm) {
 }
 
 # Use common training and test subsets
-fraction.for.training = 0.05
+fraction.for.training = 0.75
 inTrain &lt;- createDataPartition(y = data$classe, p = fraction.for.training, list = FALSE)
 training &lt;- data[inTrain, ]
 testing &lt;- data[-inTrain, ]
@@ -176,7 +176,7 @@ test.cov &lt;- testing[2:53]
 pre.proc &lt;- preProcess(train.cov, method = c(&quot;BoxCox&quot;, &quot;center&quot;, &quot;scale&quot;, &quot;pca&quot;))
 train.pc &lt;- predict(pre.proc, train.cov, threshold = variance.fraction.to.explain)
 test.pc &lt;- predict(pre.proc, test.cov, threshold = variance.fraction.to.explain)</code></pre>
-<p>R determined that we needed only <code>26</code> principal components to achieve <code>0.95</code> of the variance.</p>
+<p>R determined that we needed only <code>25</code> principal components to achieve <code>0.95</code> of the variance.</p>
 <p>We now build and evaluate our models.</p>
 </div>
 <div id="random-forest" class="section level4">
@@ -200,14 +200,14 @@ rf.cv.accuracy &lt;- rf.cv.confusion.matrix$overall[&quot;Accuracy&quot;]
 rf.confusion.matrix &lt;- confusionMatrix(testing$classe, predict(rf.fit, test.pc))
 rf.accuracy &lt;- rf.confusion.matrix$overall[&quot;Accuracy&quot;]</code></pre>
 <p>Our Random Forest model’s cross-validated accuracy is <code>1</code>, which we consider “<code>superlative</code>.”</p>
-<p>When compared with our held-out test data set, our Random Forest confusion matrix’s out-of-sample accuracy is “<code>fair</code>” at <code>0.7870057</code>, with Kappa of <code>0.730225</code>:</p>
+<p>When compared with our held-out test data set, our Random Forest confusion matrix’s out-of-sample accuracy is “<code>superlative</code>” at <code>0.9834829</code>, with Kappa of <code>0.979104</code>:</p>
 <pre><code>##           Reference
 ## Prediction    A    B    C    D    E
-##          A 4616  178  299  147   61
-##          B  347 2563  373  104  220
-##          C  208  213 2672  129   28
-##          D  222   93  358 2094  288
-##          E  122  205  223  152 2724</code></pre>
+##          A 1387    2    2    3    1
+##          B   14  929    6    0    0
+##          C    0   15  835    2    3
+##          D    0    0   21  781    2
+##          E    0    3    3    4  891</code></pre>
 </div>
 <div id="boosting" class="section level4">
 <h4>Boosting</h4>
@@ -229,15 +229,15 @@ boost.cv.accuracy &lt;- boost.cv.confusion.matrix$overall[&quot;Accuracy&quot;]
 # Evaluate model against internal test data
 boost.confusion.matrix &lt;- confusionMatrix(testing$classe, predict(boost.fit, test.pc))
 boost.accuracy &lt;- boost.confusion.matrix$overall[&quot;Accuracy&quot;]</code></pre>
-<p>Our Boosting model’s cross-validated accuracy is <code>0.9918616</code>, or “<code>superlative</code>.”</p>
-<p>The Boosting confusion matrix, derived from our set-aside testing data (as with the Random Forest model), follows. With an out-of-sample accuracy of <code>0.7028811</code> and a Kappa of <code>0.6230586</code>, we evaluate it as <code>fair</code>; it is <code>significantly</code> <code>worse</code> than the Random Forest confusion matrix.</p>
+<p>Our Boosting model’s cross-validated accuracy is <code>0.8560266</code>, or “<code>good</code>.”</p>
+<p>The Boosting confusion matrix, derived from our set-aside testing data (as with the Random Forest model), follows. With an out-of-sample accuracy of <code>0.8262643</code> and a Kappa of <code>0.7798126</code>, we evaluate it as <code>good</code>; it is <code>significantly</code> <code>worse</code> than the Random Forest confusion matrix.</p>
 <pre><code>##           Reference
 ## Prediction    A    B    C    D    E
-##          A 4332  308  315  268   78
-##          B  470 2289  331  186  331
-##          C  355  354 2186  219  136
-##          D  358  157  310 1960  270
-##          E  215  394  223  260 2334</code></pre>
+##          A 1268   29   32   55   11
+##          B  107  720   73   24   25
+##          C   47   70  691   21   26
+##          D   37   19   83  652   13
+##          E   21   66   57   36  721</code></pre>
 </div>
 <div id="model-selection" class="section level4">
 <h4>Model Selection</h4>
@@ -259,7 +259,7 @@ homework.pc &lt;- predict(pre.proc, homework.cov, threshold = variance.fraction.
 
 homework.predictions &lt;- predict(final.model.fit, homework.pc)</code></pre>
 <p>Our final result is:</p>
-<p><code>C, A, A</code>, etc.</p>
+<p><code>B, A, A</code>, etc.</p>
 <p>(<code>20</code> values total), which we export to the prediction assignment files:</p>
 <pre class="r"><code>export.path &lt;- &quot;results&quot;
 
